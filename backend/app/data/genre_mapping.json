@@ -1,0 +1,21 @@
+{
+  "fantasy": ["adventure", "mythology", "fiction", "epic fantasy"],
+  "science fiction": ["sci-fi", "dystopian", "space opera", "fiction"],
+  "mystery": ["thriller", "crime", "detective", "suspense"],
+  "thriller": ["mystery", "suspense", "crime"],
+  "romance": ["fiction", "drama"],
+  "history": ["non-fiction", "biography", "politics"],
+  "biography": ["memoir", "non-fiction", "history"],
+  "memoir": ["biography", "non-fiction"],
+  "self-help": ["psychology", "productivity", "personal development"],
+  "psychology": ["self-help", "science", "non-fiction"],
+  "science": ["physics", "non-fiction", "psychology"],
+  "philosophy": ["non-fiction", "psychology"],
+  "horror": ["thriller", "fiction", "supernatural"],
+  "adventure": ["fantasy", "fiction", "action"],
+  "dystopian": ["science fiction", "fiction"],
+  "young adult": ["fiction", "fantasy", "romance"],
+  "poetry": ["fiction"],
+  "business": ["non-fiction", "economics", "self-help"],
+  "economics": ["business", "non-fiction"]
+}

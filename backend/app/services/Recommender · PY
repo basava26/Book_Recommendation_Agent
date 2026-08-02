@@ -1,0 +1,120 @@
+"""
+Content-based recommendation engine.
+
+Scores each candidate book against the user's stated genres, interests,
+difficulty preference, and reading history, then ranks and returns the
+top N with human-readable explanations attached.
+"""
+
+import json
+from pathlib import Path
+
+from app.models.book import Book, RecommendedBook
+from app.models.user import RecommendationRequest
+from app.services.book_api_client import fetch_candidate_books
+from app.services.explanation_generator import build_reasons
+
+GENRE_WEIGHT = 3.0
+RELATED_GENRE_WEIGHT = 1.2
+INTEREST_WEIGHT = 2.0
+DIFFICULTY_WEIGHT = 1.5
+HISTORY_SIMILARITY_WEIGHT = 2.0
+
+_GENRE_MAP_PATH = Path(__file__).resolve().parent.parent / "data" / "genre_mapping.json"
+
+with open(_GENRE_MAP_PATH, "r", encoding="utf-8") as f:
+    GENRE_MAP: dict[str, list[str]] = json.load(f)
+
+
+def _related_genres(genres: set[str]) -> set[str]:
+    """Expands a set of genres to include genres commonly associated with them."""
+    related = set()
+    for g in genres:
+        related.update(GENRE_MAP.get(g, []))
+    return related - genres  # don't double count exact matches
+
+
+def _normalize(items: list[str]) -> set[str]:
+    return {i.strip().lower() for i in items if i and i.strip()}
+
+
+def _score_book(book: Book, request: RecommendationRequest):
+    book_genres = _normalize(book.genres)
+    fav_genres = _normalize(request.favorite_genres)
+    interests = _normalize(request.interests)
+    description_lower = (book.description or "").lower()
+
+    score = 0.0
+
+    # Genre overlap
+    matched_genres = list(book_genres & fav_genres)
+    score += len(matched_genres) * GENRE_WEIGHT
+
+    # Related genre overlap (e.g. user likes "fantasy" -> book tagged "mythology")
+    related = _related_genres(fav_genres)
+    matched_related_genres = list(book_genres & related)
+    score += len(matched_related_genres) * RELATED_GENRE_WEIGHT
+
+    # Interest keyword match against description + genres
+    matched_interests = [
+        term for term in interests
+        if term in description_lower or term in book_genres
+    ]
+    score += len(matched_interests) * INTEREST_WEIGHT
+
+    # Difficulty match
+    difficulty_match = book.difficulty == request.difficulty
+    if difficulty_match:
+        score += DIFFICULTY_WEIGHT
+
+    # Similarity to reading history (genre-based overlap with past books)
+    history_genres = _normalize([
+        h.genre for h in request.reading_history if h.genre
+    ])
+    already_read_titles = _normalize([h.title for h in request.reading_history])
+
+    similar_to_history = []
+    if book_genres & history_genres:
+        score += HISTORY_SIMILARITY_WEIGHT
+        similar_to_history = [
+            h.title for h in request.reading_history
+            if h.genre and h.genre.strip().lower() in book_genres
+        ]
+
+    # Penalize / exclude books already read
+    if book.title.strip().lower() in already_read_titles:
+        score = -1  # will be filtered out
+
+    return (
+        score, matched_genres, matched_related_genres,
+        matched_interests, difficulty_match, similar_to_history,
+    )
+
+
+async def get_recommendations(request: RecommendationRequest) -> list[RecommendedBook]:
+    candidates = await fetch_candidate_books(request.favorite_genres, request.interests)
+
+    scored: list[RecommendedBook] = []
+    for book in candidates:
+        (
+            score,
+            matched_genres,
+            matched_related_genres,
+            matched_interests,
+            difficulty_match,
+            similar_to_history,
+        ) = _score_book(book, request)
+
+        if score <= 0:
+            continue  # skip irrelevant or already-read books
+
+        reasons = build_reasons(
+            book, request, matched_genres, matched_interests,
+            difficulty_match, similar_to_history,
+            matched_related_genres=matched_related_genres,
+        )
+
+        scored.append(RecommendedBook(**book.model_dump(), score=score, reasons=reasons))
+
+    scored.sort(key=lambda b: b.score, reverse=True)
+    return scored[: request.max_results]
