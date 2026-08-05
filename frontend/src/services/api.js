@@ -54,5 +54,8 @@ export async function searchBooks(query, limit = 10) {
   }
 
   const books = await response.json();
+
+  console.log("Books from backend:", books);
+
   return books.map(normalizeBook);
 }
