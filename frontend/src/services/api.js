@@ -47,15 +47,44 @@ export async function fetchRecommendations(preferences, limit = 6) {
 }
 
 export async function searchBooks(query, limit = 10) {
-  const response = await fetch(`${API_URL}/books/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+  try {
+    const response = await fetch(
+      `${API_URL}/books/search?query=${encodeURIComponent(query)}&limit=${limit}`
+    );
 
-  if (!response.ok) {
-    throw new Error(`Book search failed (${response.status})`);
+    if (!response.ok) {
+      throw new Error(`Book search failed (${response.status})`);
+    }
+
+    const books = await response.json();
+
+    console.log("Search Response:", books);
+
+    if (!Array.isArray(books)) {
+      throw new Error("Backend did not return an array of books.");
+    }
+
+    return books.map((book) => ({
+      id: book.id || crypto.randomUUID(),
+      title: book.title || "Unknown Title",
+      author: book.authors?.[0] || "Unknown Author",
+      authors: book.authors || [],
+      genres: book.genres || [],
+      pages: book.page_count || 0,
+      summary: book.description || "",
+      year: book.year || "",
+      authorBio: book.authorBio || "",
+      tags: book.tags || [],
+      thumbnail: book.thumbnail || "",
+      previewLink: book.preview_link || book.previewLink || "",
+      infoLink: book.info_link || book.infoLink || "",
+      matchPercent:
+        book.score !== undefined
+          ? Math.min(99, Math.round(40 + Number(book.score) * 6))
+          : undefined,
+    }));
+  } catch (error) {
+    console.error("Book Search Error:", error);
+    throw error;
   }
-
-  const books = await response.json();
-
-  console.log("Books from backend:", books);
-
-  return books.map(normalizeBook);
 }
