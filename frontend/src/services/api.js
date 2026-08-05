@@ -1,4 +1,6 @@
-const API_URL = "http://127.0.0.1:8001";
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://book-recommendation-agent-3.onrender.com";
 const GENRE_IDS = { "self-help": "selfhelp" };
 const BACKEND_GENRES = { selfhelp: "self-help" };
 const READING_LEVELS = { beginner: "easy", intermediate: "medium", advanced: "hard" };
@@ -40,6 +42,7 @@ export async function fetchRecommendations(preferences, limit = 6) {
   }
 
   const books = await response.json();
+  console.log("Books from backend:", books);
   return books.map(normalizeBook);
 }
 
